@@ -1,0 +1,141 @@
+# FOMAML-SFT 配置文件
+# 模型: Qwen3-4B-Instruct
+# 数据集: MATH (数学推理)
+
+# 模型配置
+model:
+  partial_pretrain: "./models/Qwen3-4B-Instruct-2507"  # 修改为你的本地模型路径
+  trust_remote_code: true
+  use_fsdp: true
+  enable_gradient_checkpointing: true
+
+  fsdp_config:
+    wrap_policy:
+      # Qwen3使用Qwen2DecoderLayer
+      transformer_layer_cls_to_wrap: "Qwen2DecoderLayer"
+    model_dtype: "bf16"
+    cpu_offload: false
+    # 如果显存不足，可以开启cpu_offload
+    # cpu_offload: true
+
+# 数据配置
+data:
+  max_length: 2048
+  truncation: "right"
+  prompt_key: "prompt"
+  response_key: "response"
+  use_shm: false
+  shuffle: true
+  seed: 42
+
+  # Padding配置
+  pad_mode: "no_padding"
+  use_dynamic_bsz: false
+  balance_dp_token: true
+
+# Meta-Learning配置
+meta:
+  # 使用FOMAML（一阶近似）
+  use_fomaml: true
+
+  # 内循环参数（任务适应）
+  inner_lr: 1.0e-4          # α: 内循环学习率
+  num_inner_steps: 5        # K: 内循环步数
+  inner_batch_size: 4       # Support set batch size
+
+  # 外循环参数（元学习）
+  outer_lr: 3.0e-5          # β: 外循环学习率
+  meta_batch_size: 4        # 每次meta-update使用几个任务
+  query_batch_size: 4       # Query set batch size
+
+  # 任务定义 - 运行 prepare_math_data.py 后会自动生成
+  # 这里列出MATH数据集的7个数学领域作为任务
+  tasks:
+    - name: "algebra"
+      support_files: ["./data/math_meta/meta_train/algebra_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/algebra_query.parquet"]
+      support_max_samples: -1  # -1表示使用全部
+      query_max_samples: -1
+
+    - name: "counting_and_probability"
+      support_files: ["./data/math_meta/meta_train/counting_and_probability_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/counting_and_probability_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+    - name: "geometry"
+      support_files: ["./data/math_meta/meta_train/geometry_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/geometry_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+    - name: "intermediate_algebra"
+      support_files: ["./data/math_meta/meta_train/intermediate_algebra_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/intermediate_algebra_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+    - name: "number_theory"
+      support_files: ["./data/math_meta/meta_train/number_theory_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/number_theory_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+    - name: "precalculus"
+      support_files: ["./data/math_meta/meta_train/precalculus_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/precalculus_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+    - name: "prealgebra"
+      support_files: ["./data/math_meta/meta_train/prealgebra_support.parquet"]
+      query_files: ["./data/math_meta/meta_train/prealgebra_query.parquet"]
+      support_max_samples: -1
+      query_max_samples: -1
+
+# 优化器配置
+optim:
+  optimizer_type: "AdamW"
+  lr: 3.0e-5  # 这个会被meta.outer_lr覆盖
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  clip_grad: 1.0
+
+  # 学习率调度
+  lr_scheduler: "cosine"
+  lr_warmup_steps_ratio: 0.1
+
+# 训练器配置
+trainer:
+  device: "cuda"
+  total_steps: 5000       # 总训练步数
+  save_freq: 500          # 每500步保存一次checkpoint
+  test_freq: 100          # 每100步评估一次
+
+  # Wandb日志配置
+  project_name: "fomaml-qwen3-4b-math"
+  experiment_name: "qwen3-4b-math-7tasks"
+  logger: "wandb"  # 可选: "wandb", "tensorboard", "console"
+
+  # Checkpoint路径
+  default_local_dir: "./checkpoints/fomaml_qwen3_4b_math"
+  default_hdfs_dir: null
+
+  # 恢复训练
+  resume_mode: "auto"
+  resume_from_path: null
+  max_ckpt_to_keep: 5
+
+# Checkpoint配置
+checkpoint:
+  save_contents: ["model", "optimizer"]
+  load_contents: ["model", "optimizer"]
+
+# 说明：
+# 1. 模型路径: 修改 model.partial_pretrain 为你的Qwen3-4B本地路径
+# 2. 数据路径: 先运行 prepare_math_data.py 准备数据
+# 3. 显存需求: 约60-70GB (4卡A100)，如果不够可以:
+#    - 减少 meta_batch_size (从4降到2)
+#    - 减少 inner_batch_size (从4降到2)
+#    - 开启 cpu_offload
+# 4. 训练时间: 预计40-50小时 (4卡A100)

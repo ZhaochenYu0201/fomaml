@@ -1,0 +1,26 @@
+# 核心依赖
+torch>=2.0.0
+transformers>=4.35.0
+datasets>=2.14.0
+pandas>=2.0.0
+numpy>=1.24.0
+tensordict>=0.2.0
+tqdm>=4.65.0
+omegaconf>=2.3.0
+
+# 训练和日志
+wandb>=0.15.0
+tensorboard>=2.14.0
+
+# LoRA支持（如果使用META-LORA）
+peft>=0.5.0
+
+# 分布式训练
+accelerate>=0.23.0
+
+# 可选：Flash Attention（推荐，可以加速训练）
+# flash-attn>=2.3.0  # 需要从源码编译
+
+# 开发工具（可选）
+ipython>=8.12.0
+jupyter>=1.0.0
